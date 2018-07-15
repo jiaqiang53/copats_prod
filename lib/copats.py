@@ -226,26 +226,14 @@ class LKTrakHelper:
 
 
 class SerialPort:
-    def __init__(self):
-        self.port1 = None
-        self.port2 = None
-        self.port_name_1 = ""
-        self.port_name_2 = ""
-        self.baud_rate = 9600
-        self.acc_angle_x = 0.0
-        self.acc_angle_y = 0.0
-
-    def initialze(self, port1, port2, baud_rate):
-        self.acc_angle_x = 0.0
-        self.acc_angle_y = 0.0
-        self.port_initialize(port1, port2, baud_rate)
-
-    def port_initialize(self, port1, port2, baud_rate):
+    def __init__(self, port1="", port2="", baud_rate=115200):
         self.port_name_1 = port1
         self.port_name_2 = port2
         self.baud_rate = baud_rate
         self.port1 = serial.Serial(self.port_name_1, self.baud_rate)
         self.port2 = serial.Serial(self.port_name_2, self.baud_rate)
+        self.acc_angle_x = 0.0
+        self.acc_angle_y = 0.0
 
     def port_writer(self, angle_x, angle_y):
         angle_x = round(angle_x, 4)
@@ -339,6 +327,8 @@ class Config:
         self.port_name_2 = ""
         self.baud_rate = 115200
         self.config_params = {}
+        self.camera_index = 0
+        self.k = 2
 
     def initialization(self):
         config_file = open(sys.path[0] + '/config/config.yaml')
@@ -354,6 +344,9 @@ class Config:
         self.port_name_1 = self.config_params["port_name_1"]
         self.port_name_2 = self.config_params["port_name_2"]
         self.baud_rate = self.config_params["baud_rate"]
+        self.camera_index = self.config_params["camera_index"]
+        self.k = self.config_params["k"]
+
         # display the configuration
         self.configuration_display()
 

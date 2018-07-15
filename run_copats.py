@@ -13,16 +13,14 @@ def read_in_video():
         video_path = sys.path[0] + conf.data_path + conf.video_file_name
         video = cv2.VideoCapture(video_path)
     else:
-        video = cv2.VideoCapture(1)
+        video = cv2.VideoCapture(conf.camera_index)
     return video
 
 
 def bbox_getter(frame):
     if conf.lk_track_helper:
-        bbox_width = conf.bbox_width
-        bbox_height = conf.bbox_height
         lk = cpt.LKTrakHelper()
-        lk.feature_detect(frame, bbox_width, bbox_height)
+        lk.feature_detect(frame, conf.bbox_width, conf.bbox_height)
         bbox = lk.bbox
     else:
         # Uncomment the line below to select a different bounding box
@@ -50,9 +48,8 @@ def tracker_runner():
     ot.tracker_initialize(frame, bbox)
 
     # port initialization
-    sp = cpt.SerialPort()
     if conf.port_write:
-        sp.initialze(conf.port_name_1, conf.port_name_2, conf.baud_rate)
+        sp = cpt.SerialPort(conf.port_name_1, conf.port_name_2, conf.baud_rate)
 
     # opats controller defination1
     oc = cpt.OpatsPIDController()
@@ -74,8 +71,10 @@ def tracker_runner():
         # write to the port
         if conf.port_write:
             sp.port_writer(angle_x=oc.angle_to_command_x, angle_y=oc.angle_to_command_y)
+            print ot.delta_x, ot.delta_y, oc.angle_to_command_x, oc.angle_to_command_y, sp.acc_angle_x, sp.acc_angle_y
+        else:
+            print ot.delta_x, ot.delta_y, oc.angle_to_command_x, oc.angle_to_command_y
 
-        print ot.delta_x, ot.delta_y, oc.angle_to_command_x, oc.angle_to_command_y, sp.acc_angle_x, sp.acc_angle_y
         # Exit if ESC pressed
         k = cv2.waitKey(1) & 0xff
         if k == 27:
