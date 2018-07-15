@@ -1,6 +1,7 @@
 # encoding:utf-8
 import cv2
 import sys
+import os
 import yaml
 import cmath
 import time
@@ -133,12 +134,16 @@ class OpatsPIDController:
         self.last_delta_x = self.curr_delta_x
         self.last_delta_y = self.curr_delta_y
 
-    def angle_to_command_v1(self):
+    def angle_to_command_v1(self, delta_x, delta_y):
+        self.curr_delta_x = delta_x
+        self.curr_delta_y = delta_y
         self.pid_calc()
         self.angle_to_command_x = self.angle_x
         self.angle_to_command_y = self.angle_y
 
-    def angle_to_command(self):
+    def angle_to_command(self, delta_x, delta_y):
+        self.curr_delta_x = delta_x
+        self.curr_delta_y = delta_y
         self.pid_calc()
         if self.angle_x == 0:
             self.angle_to_command_x = 1000000.0
@@ -201,7 +206,15 @@ class LKTrakHelper:
         cv2.waitKey(2000)
 
     def bbox_implement(self, width, height):
-        self.bbox = (self.x_center - width/2, self.y_center - height/2, width, height)
+        up_left_x = self.x_center - width/2
+        if up_left_x < 0:
+            up_left_x = self.x_center
+        up_left_y = self.y_center - height/2
+        if up_left_y < 0:
+            up_left_y = self.y_center
+
+        self.bbox = (up_left_x, up_left_y, width, height)
+        # print "x_center: %d" % self.x_center, "y_center: %d" % self.y_center, "width: %d" % width, "height: %d" % height
 
     def feature_detect(self, frame, width, height):
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # 转化为灰度虚图像
@@ -330,7 +343,18 @@ class Config:
         self.camera_index = 0
         self.k = 2
 
+    def get_port_name(self):
+        for root, dirs, files in os.walk("/dev"):
+            for file in files:
+                if "ttyUSB" in file:
+                    self.port_write = True
+                else:
+                    self.port_write = False
+        self.port_name_1 = "/dev/ttyUSB0"
+        self.port_name_2 = "/dev/ttyUSB1"
+
     def initialization(self):
+        self.get_port_name()
         config_file = open(sys.path[0] + '/config/config.yaml')
         self.config_params = yaml.load(config_file)
         self.data_path = self.config_params["data_path"]
@@ -340,9 +364,6 @@ class Config:
         self.video_file_name = self.config_params["video_file_name"]
         self.bbox_width = self.config_params["bbox_width"]
         self.bbox_height = self.config_params["bbox_height"]
-        self.port_write = self.config_params["port_write"]
-        self.port_name_1 = self.config_params["port_name_1"]
-        self.port_name_2 = self.config_params["port_name_2"]
         self.baud_rate = self.config_params["baud_rate"]
         self.camera_index = self.config_params["camera_index"]
         self.k = self.config_params["k"]

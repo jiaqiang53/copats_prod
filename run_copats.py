@@ -64,16 +64,18 @@ def tracker_runner():
         ot.tracker_update(frame)
 
         # calculation the delta dist through pid controller
-        oc.curr_delta_x = ot.delta_x
-        oc.curr_delta_y = ot.delta_y
-        oc.angle_to_command_v1()
+        oc.angle_to_command_v1(ot.delta_x, ot.delta_y)
 
         # write to the port
         if conf.port_write:
             sp.port_writer(angle_x=oc.angle_to_command_x, angle_y=oc.angle_to_command_y)
-            print ot.delta_x, ot.delta_y, oc.angle_to_command_x, oc.angle_to_command_y, sp.acc_angle_x, sp.acc_angle_y
-        else:
-            print ot.delta_x, ot.delta_y, oc.angle_to_command_x, oc.angle_to_command_y
+        print "delta_x: {delta_x}, delta_y: {delta_y}, angle_x: {angle_x}, angle_y: {angle_y}, angle_command_x: " \
+              "{angle_command_x}, angle_command_y: {angle_command_y}".format(delta_x=ot.delta_x,
+                                                                             delta_y=ot.delta_y,
+                                                                             angle_x=oc.angle_x,
+                                                                             angle_y=oc.angle_y,
+                                                                             angle_command_x=oc.angle_to_command_x,
+                                                                             angle_command_y=oc.angle_to_command_y)
 
         # Exit if ESC pressed
         k = cv2.waitKey(1) & 0xff

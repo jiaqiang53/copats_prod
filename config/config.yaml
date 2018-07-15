@@ -1,12 +1,9 @@
 # YAML
-port_write: False
 sub_sample: False
 lk_track_helper: True
 video_tracking: False
 data_path : "/data/"
 video_file_name: "uav01.mp4"
-port_name_1 : '/dev/ttyUSB0'
-port_name_2 : '/dev/ttyUSB1'
 camera_index : 0
 bbox_width : 180
 bbox_height : 100
