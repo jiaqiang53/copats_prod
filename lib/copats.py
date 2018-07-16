@@ -348,8 +348,7 @@ class Config:
             for file in files:
                 if "ttyUSB" in file:
                     self.port_write = True
-                else:
-                    self.port_write = False
+                    break
         self.port_name_1 = "/dev/ttyUSB0"
         self.port_name_2 = "/dev/ttyUSB1"
 

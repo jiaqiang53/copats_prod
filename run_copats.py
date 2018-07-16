@@ -49,6 +49,7 @@ def tracker_runner():
 
     # port initialization
     if conf.port_write:
+        print "Port initialization..."
         sp = cpt.SerialPort(conf.port_name_1, conf.port_name_2, conf.baud_rate)
 
     # opats controller defination1
