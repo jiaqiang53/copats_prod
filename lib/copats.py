@@ -109,15 +109,14 @@ class OpatsPIDController:
         self.angle_y = 1.0
         self.angle_to_command_x = 1.0
         self.angle_to_command_y = 1.0
-        self.tracking_distance = 2000.0
-        self.angle_transfer_factor = 360.0 / (2 * cmath.pi)
-        self.pid_x_factor = 0.5
-        self.pid_y_factor = 0.3
+        self.angle_transfer_factor = 0.003
+        self.pid_x_factor = 5
+        self.pid_y_factor = 3
         self.command_period = 50000.0 / 2
         self.resolution = 20000.0
         self.ratio_x = 3.0
         self.ratio_y = 1.0
-        self.pid_p = self.angle_transfer_factor / self.tracking_distance
+        self.pid_p = self.angle_transfer_factor
         self.pid_i = 0
         self.pid_d = 0.01
 
