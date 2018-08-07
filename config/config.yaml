@@ -1,9 +1,10 @@
 # YAML
 sub_sample: False
 lk_track_helper: True
-video_tracking: False
+video_tracking: True
 data_path : "/data/"
 video_file_name: "uav01.mp4"
+target_name: "aeroplane"
 camera_index : 0
 bbox_width : 180
 bbox_height : 100
