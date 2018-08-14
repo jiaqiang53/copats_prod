@@ -5,6 +5,7 @@ import sys
 import os
 import yaml
 import math
+import cmath
 import time
 import numpy as np
 import serial
@@ -88,6 +89,10 @@ class OpatsTracker:
         self.frame_shape_half_width = frame.shape[1] / 2
         self.frame_shape_half_height = frame.shape[0] / 2
         self.initialzing = False
+
+    def person_bbox_transfer(self, bbox):
+        person_bbox = (bbox[0], bbox[1], bbox[2], bbox[3] / 5)
+        return person_bbox
 
     def track_target_finder(self, frame, bbox_width, bbox_height):
         self.height_factor = frame.shape[0] / 300.0
@@ -217,13 +222,15 @@ class OpatsTracker:
                     track_status = True
                     label = classNames[class_id] + ": dnn_net " + str(confidence)
                     bbox = (xLeftBottom, yLeftBottom, xRightTop - xLeftBottom, yRightTop - yLeftBottom)
+                    if self.target_name == "person":
+                        bbox = self.person_bbox_transfer(bbox)
         return track_status, label, bbox
 
 
 class OpatsPIDController:
     def __init__(self):
-        self.last_delta_x = 1.0
-        self.last_delta_y = 1.0
+        self.last_delta_angle_x = 1.0
+        self.last_delta_angle_y = 1.0
         self.last_angle_x = 1.0
         self.last_angle_y = 1.0
         self.curr_delta_x = 1.0
@@ -233,60 +240,52 @@ class OpatsPIDController:
         self.angle_y = 1.0
         self.angle_to_command_x = 1.0
         self.angle_to_command_y = 1.0
-        self.angle_transfer_factor = 0.003
-        self.pid_x_factor = 5
-        self.pid_y_factor = 3
+        self.tracking_distance = 200.0
+        self.angle_transfer_factor = 360.0 / (2 * cmath.pi)
+        self.pid_x_factor = 1.25
+        self.pid_y_factor = -0.625
         self.command_period = 50000.0 / 2
         self.resolution = 20000.0
         self.ratio_x = 3.0
         self.ratio_y = 1.0
-        self.pid_p = self.angle_transfer_factor
-        self.pid_i = 0
-        self.pid_d = 0.01
+        # self.pid_p = self.angle_transfer_factor / self.tracking_distance
+        self.pid_p_x = 0.45
+        self.pid_i_x = 0
+        self.pid_d_x = 0.05
+        self.pid_p_y = 0.18
+        self.pid_i_y = 0
+        self.pid_d_y = 0.05
 
     def pid_calc(self):
-        self.curr_delta_x = self.curr_delta_x * 0.001 * 57.3
-        self.curr_delta_y = self.curr_delta_y * 0.001 * 57.3
+        self.curr_delta_angle_x = self.curr_delta_x * 0.001 * 57.3
+        self.curr_delta_angle_y = self.curr_delta_y * 0.001 * 57.3
 
-        self.curr_delta_x = self.curr_delta_x - self.last_angle_x / 100 * 10
-        self.curr_delta_y = self.curr_delta_y - self.last_angle_y / 100 * 10
+        self.curr_delta_angle_x = self.curr_delta_angle_x - self.last_angle_x / 100 * 15
+        self.curr_delta_angle_y = self.curr_delta_angle_y - self.last_angle_y / 100 * 15
 
         if self.cal_cnt == 0:
-            self.angle_x = (self.curr_delta_x * self.pid_p) * self.pid_x_factor
-            self.angle_y = (self.curr_delta_y * self.pid_p) * self.pid_y_factor
+            self.angle_x = (self.curr_delta_angle_x * self.pid_p_x) * self.pid_x_factor
+            self.angle_y = (self.curr_delta_angle_y * self.pid_p_y) * self.pid_y_factor
         else:
-            self.angle_x = (self.curr_delta_x * self.pid_p + (self.curr_delta_x - self.last_delta_x) * self.pid_d) \
+            self.angle_x = (self.curr_delta_angle_x * self.pid_p_x + (self.curr_delta_angle_x - self.last_delta_angle_x) * self.pid_d_x) \
                            * self.pid_x_factor
-            self.angle_y = (self.curr_delta_y * self.pid_p + (self.curr_delta_y - self.last_delta_y) * self.pid_d) \
+            self.angle_y = (self.curr_delta_angle_y * self.pid_p_y + (self.curr_delta_angle_y - self.last_delta_angle_y) * self.pid_d_y) \
                            * self.pid_y_factor
         self.cal_cnt += 1
         if self.cal_cnt > 10000:
             self.cal_cnt = 1
-        self.last_delta_x = self.curr_delta_x
-        self.last_delta_y = self.curr_delta_y
+        self.last_delta_angle_x = self.curr_delta_angle_x
+        self.last_delta_angle_y = self.curr_delta_angle_y
         self.last_angle_x = self.angle_x
         self.last_angle_y = self.angle_y
 
-    def angle_to_command_v1(self, delta_x, delta_y):
+    def pixel_to_command(self, delta_x, delta_y):
         self.curr_delta_x = delta_x
         self.curr_delta_y = delta_y
         self.pid_calc()
-        pulses_per_circle = 800.0
+        pulses_per_circle = 20000.0
         self.angle_to_command_x = self.angle_x * pulses_per_circle / 360.0
         self.angle_to_command_y = self.angle_y * pulses_per_circle / 360.0
-
-    def angle_to_command(self, delta_x, delta_y):
-        self.curr_delta_x = delta_x
-        self.curr_delta_y = delta_y
-        self.pid_calc()
-        if self.angle_x == 0:
-            self.angle_to_command_x = 1000000.0
-        else:
-            self.angle_to_command_x = self.command_period / (self.ratio_x * self.angle_x * self.resolution / 360.0)
-        if self.angle_y == 0:
-            self.angle_to_command_y = 1000000.0
-        else:
-            self.angle_to_command_y = self.command_period / (self.ratio_y * self.angle_y * self.resolution / 360.0)
 
 
 class LKTrakHelper:
@@ -398,7 +397,7 @@ class SerialPort:
         self.port_name_2 = port2
         self.baud_rate = baud_rate
         self.port1 = serial.Serial(self.port_name_1, self.baud_rate)
-        self.port2 = serial.Serial(self.port_name_2, self.baud_rate)
+        # self.port2 = serial.Serial(self.port_name_2, self.baud_rate)
         self.acc_angle_x = 0.0
         self.acc_angle_y = 0.0
 
@@ -420,8 +419,8 @@ class SerialPort:
         return a
 
     def port_writer(self, angle_x, angle_y):
-        angle_x = int(angle_x)
-        angle_y = int(angle_y)
+        # angle_x = int(angle_x)
+        # angle_y = int(angle_y)
         self.acc_angle_x += angle_x
         self.acc_angle_y -= angle_y
         command = self.x_y_to_com(angle_x, angle_y)
@@ -435,9 +434,9 @@ class SerialPort:
         if self.port1.is_open:
             self.port1.flushInput()
             angle_resx = self.port1.write('x' + str(-self.acc_angle_x) + 'n')
-        if self.port2.is_open:
-            self.port2.flushInput()
-            angle_resy = self.port2.write('y' + str(-self.acc_angle_y) + 'n')
+        # if self.port2.is_open:
+        #     self.port2.flushInput()
+        #     angle_resy = self.port2.write('y' + str(-self.acc_angle_y) + 'n')
 
 
 class Config:
@@ -465,7 +464,7 @@ class Config:
                     self.port_write = True
                     break
         self.port_name_1 = "/dev/ttyUSB0"
-        self.port_name_2 = "/dev/ttyUSB1"
+        # self.port_name_2 = "/dev/ttyUSB1"
 
     def initialization(self):
         self.get_port_name()

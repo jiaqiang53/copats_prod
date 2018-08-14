@@ -59,11 +59,13 @@ def tracker_runner():
             frame_index += 1
 
             # calculation the delta dist through pid controller
-            oc.angle_to_command_v1(ot.delta_x, ot.delta_y)
+            # oc.angle_to_command_v1(ot.delta_x, ot.delta_y)
+            oc.pixel_to_command(ot.delta_x, ot.delta_y)
 
             # write to the port
             if conf.port_write:
                 sp.port_writer(angle_x=oc.angle_to_command_x, angle_y=oc.angle_to_command_y)
+
             print "delta_x: {delta_x}, delta_y: {delta_y}, angle_x: {angle_x}, angle_y: {angle_y}, angle_command_x: " \
                   "{angle_command_x}, angle_command_y: {angle_command_y}".format(delta_x=ot.delta_x,
                                                                                  delta_y=ot.delta_y,
