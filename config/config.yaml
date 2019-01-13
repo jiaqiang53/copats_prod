@@ -2,10 +2,11 @@
 sub_sample: False
 lk_track_helper: True
 video_tracking: False
+use_mvsdk: True
 data_path : "/data/"
 video_file_name: "uav01.mp4"
 target_name: "person"
-camera_index : 1
+camera_index : 2
 bbox_width : 180
 bbox_height : 100
 baud_rate : 115200

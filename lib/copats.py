@@ -9,6 +9,7 @@ import cmath
 import time
 import numpy as np
 import serial
+import lib.mvsdk as mvsdk
 
 print "Copats is Powered by OpenCV", cv2.__version__
 
@@ -439,12 +440,100 @@ class SerialPort:
         #     angle_resy = self.port2.write('y' + str(-self.acc_angle_y) + 'n')
 
 
+class MVCamera:
+    def __init__(self):
+        self.h_camera = 0
+        self.p_frame_buffer = None
+        self.device_status = False
+
+    def device_preparation(self):
+        dev_list = mvsdk.CameraEnumerateDevice()
+        no_dev = len(dev_list)
+        if no_dev < 1:
+            print("No camera device was found!")
+            return False
+
+        dev_info = dev_list[0]
+        print "device info:", dev_info
+
+        # 打开相机
+        self.h_camera = 0
+        try:
+            self.h_camera = mvsdk.CameraInit(dev_info, -1, -1)
+        except mvsdk.CameraException as e:
+            print("CameraInit Failed({}): {}".format(e.error_code, e.message))
+            return False
+
+        # 获取相机特性描述
+        cap = mvsdk.CameraGetCapability(self.h_camera)
+
+        # 判断是黑白相机还是彩色相机
+        mono_camera = (cap.sIspCapacity.bMonoSensor != 0)
+        print("Black && White Camera: {}".format(mono_camera))
+
+        # 黑白相机让ISP直接输出MONO数据，而不是扩展成R=G=B的24位灰度
+        if mono_camera:
+            mvsdk.CameraSetIspOutFormat(self.h_camera, mvsdk.CAMERA_MEDIA_TYPE_MONO8)
+        else:
+            mvsdk.CameraSetIspOutFormat(self.h_camera, mvsdk.CAMERA_MEDIA_TYPE_BGR8)
+
+        # 相机模式切换成连续采集
+        mvsdk.CameraSetTriggerMode(self.h_camera, 0)
+
+        # 手动曝光，曝光时间30ms
+        mvsdk.CameraSetAeState(self.h_camera, 0)
+        mvsdk.CameraSetExposureTime(self.h_camera, 30 * 1000)
+
+        # 让SDK内部取图线程开始工作
+        mvsdk.CameraPlay(self.h_camera)
+
+        # 计算RGB buffer所需的大小，这里直接按照相机的最大分辨率来分配
+        frame_buffer_size = cap.sResolutionRange.iWidthMax * cap.sResolutionRange.iHeightMax * (1 if mono_camera else 3)
+
+        # 分配RGB buffer，用来存放ISP输出的图像
+        # 备注：从相机传输到PC端的是RAW数据，在PC端通过软件ISP转为RGB数据（如果是黑白相机就不需要转换格式，但是ISP还有其它处理，所以也需要分配这个buffer）
+        self.p_frame_buffer = mvsdk.CameraAlignMalloc(frame_buffer_size, 16)
+        print("buffer got")
+        self.device_status = True
+        return True
+    
+    def read(self):
+        if not self.device_status:
+            print "camera preparation failed..."
+            return False, 0
+        try:
+            p_raw_date, frame_head = mvsdk.CameraGetImageBuffer(self.h_camera, 400)
+            mvsdk.CameraImageProcess(self.h_camera, p_raw_date, self.p_frame_buffer, frame_head)
+            mvsdk.CameraReleaseImageBuffer(self.h_camera, p_raw_date)
+
+            # 此时图片已经存储在p_frame_buffer中，对于彩色相机p_frame_buffer=RGB数据，黑白相机p_frame_buffer=8位灰度数据
+            # 把p_frame_buffer转换成opencv的图像格式以进行后续算法处理
+            frame_data = (mvsdk.c_ubyte * frame_head.uBytes).from_address(self.p_frame_buffer)
+            frame = np.frombuffer(frame_data, dtype=np.uint8)
+            # frame = frame.reshape((frame_head.iHeight, frame_head.iWidth, 1 if frame_head.uiMediaType == mvsdk.CAMERA_MEDIA_TYPE_MONO8 else 3))
+            frame = frame.reshape((frame_head.iHeight, frame_head.iWidth, 3))
+            print "mvsdk frame got"
+            return True, frame
+        except mvsdk.CameraException as e:
+            print "log error:", e.message
+            if e.error_code != mvsdk.CAMERA_STATUS_TIME_OUT:
+                print("CameraGetImageBuffer failed({}): {}".format(e.error_code, e.message))
+            return False, 0
+
+    def close(self):
+        # 关闭相机
+        mvsdk.CameraUnInit(self.h_camera)
+        # 释放帧缓存
+        mvsdk.CameraAlignFree(self.p_frame_buffer)
+
+
 class Config:
     def __init__(self):
         self.data_path = ""
         self.sub_sample = False
         self.lk_track_helper = False
         self.video_tracking = True
+        self.use_mvsdk = False
         self.video_file_name = ""
         self.bbox_width = 0
         self.bbox_height = 0
@@ -474,6 +563,7 @@ class Config:
         self.sub_sample = self.config_params["sub_sample"]
         self.lk_track_helper = self.config_params["lk_track_helper"]
         self.video_tracking = self.config_params["video_tracking"]
+        self.use_mvsdk = self.config_params["use_mvsdk"]
         self.video_file_name = self.config_params["video_file_name"]
         self.bbox_width = self.config_params["bbox_width"]
         self.bbox_height = self.config_params["bbox_height"]
